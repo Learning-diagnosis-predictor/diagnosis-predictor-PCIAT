@@ -24,7 +24,7 @@ def build_output_dir_name(params_from_previous_script):
 
 def set_up_directories():
 
-    data_dir = "../diagnosis_predictor_data/"
+    data_dir = "../diagnosis_predictor_PCIAT_data/"
 
     # Input dirs
     input_data_dir = models.get_newest_non_empty_dir_in_dir(data_dir + "data/create_datasets/")
@@ -50,8 +50,7 @@ def set_up_directories():
             "output_reports_dir": output_reports_dir, "output_models_dir": output_models_dir}
 
 def set_up_load_directories():
-    data_dir = "../diagnosis_predictor_data/"
-
+    data_dir = "../diagnosis_predictor_PCIAT_data/"
     load_reports_dir = models.get_newest_non_empty_dir_in_dir(data_dir+ "reports/identify_feature_subsets/")
     load_models_dir = models.get_newest_non_empty_dir_in_dir(data_dir + "models/identify_feature_subsets/")
 

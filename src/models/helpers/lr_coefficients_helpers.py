@@ -10,7 +10,7 @@ import util
 def get_coefficients_df_from_lr(pipeline, data):
     # Get the coefficients from estimator 
     estimator = util.get_estimator_from_pipeline(pipeline)
-    coef = estimator.coef_[0]
+    coef = estimator.coef_
     # Get the feature names
     feature_names = data.columns
     # Create a dataframe of the coefficients and feature names

@@ -10,7 +10,7 @@ Arguments: only_assessment_distribution, first_assessment_to_drop, use_other_dia
 
 ## 2 step:
 
-`python -W ignore src/models/train_models.py 0.02 0 0`
+`python -W ignore src/models/train_models.py 0.02 0`
 
 Arguments: performance_margin = 0.02, models_from_file = 1
 

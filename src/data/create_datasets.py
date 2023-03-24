@@ -182,7 +182,7 @@ def main(only_assessment_distribution, first_assessment_to_drop, use_other_diags
         # positive examples is > threshold
         min_pos_examples_val_set = 20
         split_percentage = 0.2
-        all_diags = [x for x in full_dataset.columns if x.startswith("Diag.")]
+        output_cols = ["PCIAT,PCIAT_Total", "IAT,IAT_Total", "PreInt_EduHx,recent_grades", "WHODAS_P,WHODAS_P_Total", "WHODAS_SR,WHODAS_SR_Score", "CIS_P,CIS_P_Score", "CIS_SR,CIS_SR_Total"]
         positive_examples_in_ds = get_positive_examples_in_ds(full_dataset, all_diags)
         
         diag_cols = find_diags_w_enough_positive_examples_in_val_set(positive_examples_in_ds, all_diags, split_percentage, min_pos_examples_val_set)

@@ -69,9 +69,9 @@ def drop_rows_w_underscore_in_id(full):
 
     return full_wo_underscore
 
-def remove_incomplete_and_missing_diag(full_wo_underscore):
-    full_wo_underscore = full_wo_underscore[full_wo_underscore["Diagnosis_ClinicianConsensus,DX_01"] != "No Diagnosis Given: Incomplete Eval"]
-    full_wo_underscore = full_wo_underscore[full_wo_underscore["Diagnosis_ClinicianConsensus,EID"].notna()]
+def remove_where_missing_output(full_wo_underscore, output_cols):
+    # Remove rows where output is missing
+    full_wo_underscore = full_wo_underscore[full_wo_underscore[output_cols].notna().all(axis=1)]
     return full_wo_underscore
 
 def get_assessment_answer_count(full_wo_underscore, EID_cols):
@@ -204,30 +204,19 @@ def separate_item_lvl_from_scale_scores(data_up_to_dropped, columns_until_droppe
                         "ICU_P,ICU_P_Total",
                         "ICU_SR,ICU_SR_Total",
                         "APQ_P,APQ_P_Total",
-                        "PCIAT,PCIAT_Total",
+                        #"PCIAT,PCIAT_Total", # To predict
+                        #"IAT,IAT_Total", # To predict
                         "DTS,DTS_Total",
                         "MFQ_P,MFQ_P_Total",
                         "APQ_SR,APQ_SR_Total",
-                        "WHODAS_P,WHODAS_P_Total", 
-                        "CIS_P,CIS_P_Score", 
+                        #"WHODAS_P,WHODAS_P_Score", # Don't remove impairment scores - to predict
+                        #"CIS_P,CIS_P_Total", # Don't remove impairment scores - to predict
                         "PSI,PSI_Total",
                         "PSI,PSI_Total_T",
                         "RBS,RBS_Total",
-                        "SCARED_P,SCARED_P_Total",
                         "SCARED_SR,SCARED_SR_Total",
-                        "WHODAS_SR,WHODAS_SR_Score", 
-                        "CIS_SR,CIS_SR_Total" 
-                        # "C3SR,C3SR_Total", # Doesn't have a total
-                        # "CCSC,CCSC_Total",  # Doesn't have a total
-                        # "CPIC,CPIC_Total", # Doesn't have a total
-                        "YSR,YSR_Total",
-                        "YSR,YSR_Total_T",
-                        "CBCL_Pre,CBCL_Pre_Total",
-                        "CBCL_Pre,CBCL_Pre_Total_T",
-                        "SRS_Pre,SRS_Pre_Total",
-                        "SRS_Pre,SRS_Pre_Total_T",
-                        "ASR,ASR_Total",
-                        "ASR,ASR_Total_T",
+                        #"WHODAS_SR,WHODAS_SR_Score", # Don't remove impairment scores - to predict
+                        #"CIS_SR,CIS_SR_Total" # Don't remove impairment scores - to predict
                     ]
     total_score_raw_cols = [x.strip("_T") for x in total_score_cols_w_raw if x.endswith("_T")]
     subscale_score_cols_w_raw = ["Barratt,Barratt_Total_Edu", "Barratt,Barratt_Total_Occ",
@@ -305,6 +294,9 @@ def make_full_dataset(only_assessment_distribution, first_assessment_to_drop, on
     if only_free_assessments == 1:
         relevent_assessments_list = remove_proprietary_assessments(relevent_assessments_list)
 
+    output_cols = ["PCIAT,PCIAT_Total", "IAT,IAT_Total", "PreInt_EduHx,recent_grades", "WHODAS_P,WHODAS_P_Total", "WHODAS_SR,WHODAS_SR_Score", "CIS_P,CIS_P_Score", "CIS_SR,CIS_SR_Total"]
+    #output_cols = ["PCIAT,PCIAT_Total", "PreInt_EduHx,recent_grades"]
+
     # LORIS saved query (all data)
     full = pd.read_csv("data/raw/LORIS-release-10.csv", dtype=object)
     
@@ -331,8 +323,8 @@ def make_full_dataset(only_assessment_distribution, first_assessment_to_drop, on
     EID_cols = [x for x in EID_cols if 'TRF' not in x]
     EID_cols = [x for x in EID_cols if 'DailyMeds' not in x]
 
-    # Remove incomplete DX and missing DX
-    full_wo_underscore = remove_incomplete_and_missing_diag(full_wo_underscore)    
+    # Remove rows with missing values in output cols
+    full_wo_underscore = remove_where_missing_output(full_wo_underscore, output_cols)    
 
     # Get list of assessments in data
     assessment_list = set([x.split(",")[0] for x in EID_cols])
