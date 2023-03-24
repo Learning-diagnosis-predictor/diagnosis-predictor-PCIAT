@@ -1,57 +1,45 @@
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split 
+import pandas as pd
 
-def customize_input_cols_per_diag(input_cols, diag):
-    # Remove "Diag.Intellectual Disability-Mild" when predicting "Diag.Borderline Intellectual Functioning"
-    #   and vice versa because they are highly correlated, same for other diagnoses
-    
-    if diag == "Diag.Intellectual Disability-Mild":
-        input_cols = [x for x in input_cols if x != "Diag.Borderline Intellectual Functioning"]
-    if diag == "Diag.Borderline Intellectual Functioning":
-        input_cols = [x for x in input_cols if x != "Diag.Intellectual Disability-Mild"]
-    if diag == "Diag.No Diagnosis Given":
-        input_cols = [x for x in input_cols if not x.startswith("Diag.")]
-    if diag == "Diag.ADHD-Combined Type":
-        input_cols = [x for x in input_cols if x not in ["Diag.ADHD-Inattentive Type", 
-                                                         "Diag.ADHD-Hyperactive/Impulsive Type",
-                                                         "Diag.Other Specified Attention-Deficit/Hyperactivity Disorder",
-                                                         "Diag.Unspecified Attention-Deficit/Hyperactivity Disorder"]]
-    if diag == "Diag.ADHD-Inattentive Type":
-        input_cols = [x for x in input_cols if x not in ["Diag.ADHD-Combined Type", 
-                                                         "Diag.ADHD-Hyperactive/Impulsive Type",
-                                                         "Diag.Other Specified Attention-Deficit/Hyperactivity Disorder",
-                                                         "Diag.Unspecified Attention-Deficit/Hyperactivity Disorder"]]
-                      
-    return input_cols
+def get_cols_from_output_assessments(all_cols, output_cols):
+    cols_from_output_assessments = []
+    for col in output_cols:
+        assessment_name = col.split(",")[0]
+        cols_from_output_assessments += [x for x in all_cols if assessment_name in x]
 
-def get_input_and_output_cols_for_diag(full_dataset, diag, use_other_diags_as_input):
+    return cols_from_output_assessments
+
+def get_input_and_output_cols_for_output(full_dataset, output, output_cols):
+
+    cols_from_output_assessments = get_cols_from_output_assessments(full_dataset.columns, output_cols)
     
-    if use_other_diags_as_input == 1:
-        input_cols = [x for x in full_dataset.columns if 
-                            not x in ["WHODAS_P,WHODAS_P_Total", "CIS_P,CIS_P_Score", "WHODAS_SR,WHODAS_SR_Score", "CIS_SR,CIS_SR_Total"]
-                            and not x == diag
-                            and not x == "Diag.No Diagnosis Given"]
-    else:
-        input_cols = [x for x in full_dataset.columns if 
-                            not x in ["WHODAS_P,WHODAS_P_Total", "CIS_P,CIS_P_Score", "WHODAS_SR,WHODAS_SR_Score", "CIS_SR,CIS_SR_Total"]
-                            and not x.startswith("Diag.")]
+    input_cols = [x for x in full_dataset.columns if 
+                    not x in cols_from_output_assessments
+                    and not x.startswith("Diag.")
+                    and not x == "Diag.No Diagnosis Given"]
     
-    input_cols = customize_input_cols_per_diag(input_cols, diag)
-    
-    output_col = diag
+    output_col = output
     
     return input_cols, output_col
 
-def create_datasets(full_dataset, diag_cols, split_percentage, use_other_diags_as_input):
+def bin_continuous_var(col, n_bins):
+    return pd.qcut(col, q=n_bins, labels=False, duplicates='drop')
+
+def create_datasets(full_dataset, output_cols, split_percentage):
     datasets = {}
-    for diag in diag_cols:
+    for output in output_cols:
         
-        input_cols, output_col = get_input_and_output_cols_for_diag(full_dataset, diag, use_other_diags_as_input)
+        input_cols, output_col = get_input_and_output_cols_for_output(full_dataset, output, output_cols)
         
         # Split train, validation, and test sets
-        X_train, X_test, y_train, y_test = train_test_split(full_dataset[input_cols], full_dataset[output_col], test_size=split_percentage, stratify=full_dataset[output_col], random_state=1)
-        X_train_train, X_val, y_train_train, y_val = train_test_split(X_train, y_train, test_size=split_percentage, stratify=y_train, random_state=1)
+        # Create a new categorical variable by discretizing the continuous target variable (except recent grades, which is already only 5 values)
+        full_dataset[f'{output_col}_binned'] = bin_continuous_var(full_dataset[output_col], 10) if output_col != "PreInt_EduHx,recent_grades" else full_dataset[output_col]
+        X_train, X_test, y_train, y_test = train_test_split(full_dataset[input_cols], full_dataset[output_col], test_size=split_percentage, stratify=full_dataset[f'{output_col}_binned'], random_state=1)
+
+        y_train_binned = bin_continuous_var(y_train, 10) if output_col != "PreInt_EduHx,recent_grades" else y_train
+        X_train_train, X_val, y_train_train, y_val = train_test_split(X_train[input_cols], y_train, test_size=split_percentage, stratify=y_train_binned, random_state=1)
     
-        datasets[diag] = { "X_train": X_train,
+        datasets[output] = { "X_train": X_train,
                         "X_test": X_test,
                         "y_train": y_train,
                         "y_test": y_test,

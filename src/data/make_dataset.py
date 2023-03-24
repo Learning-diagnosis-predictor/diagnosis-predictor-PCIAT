@@ -28,7 +28,7 @@ def build_output_dir_name(first_assessment_to_drop):
 def set_up_directories(first_assessment_to_drop):
 
     # Create directory in the parent directory of the project (separate repo) for output data, models, and reports
-    data_dir = "../diagnosis_predictor_data/"
+    data_dir = "../diagnosis_predictor_PCIAT_data/"
     util.create_dir_if_not_exists(data_dir)
 
     # Create directory inside the output directory with the run timestamp and first_assessment_to_drop param
@@ -91,9 +91,9 @@ def drop_rows_w_underscore_in_id(full):
 
     return full_wo_underscore
 
-def remove_incomplete_and_missing_diag(full_wo_underscore):
-    full_wo_underscore = full_wo_underscore[full_wo_underscore["Diagnosis_ClinicianConsensus,DX_01"] != "No Diagnosis Given: Incomplete Eval"]
-    full_wo_underscore = full_wo_underscore[full_wo_underscore["Diagnosis_ClinicianConsensus,EID"].notna()]
+def remove_where_missing_output(full_wo_underscore, output_cols):
+    # Remove rows where output is missing
+    full_wo_underscore = full_wo_underscore[full_wo_underscore[output_cols].notna().all(axis=1)]
     return full_wo_underscore
 
 def get_assessment_answer_count(full_wo_underscore, EID_cols):
@@ -110,7 +110,7 @@ def get_relevant_id_cols_by_popularity(assessment_answer_counts):
     #   relevant cognitive tests, Questionnaire Measures of Emotional and Cognitive Status, and 
     #   Questionnaire Measures of Family Structure, Stress, and Trauma (from Assessment_List_Jan2019.xlsx)
     relevant_EID_list = [x+",EID" for x in ["Basic_Demos", "PreInt_EduHx", "PreInt_DevHx", "SympChck", "SCQ", "Barratt", 
-        "ASSQ", "ARI_P", "SDQ", "SWAN", "SRS", "CBCL", "ICU_P", "APQ_P", "PCIAT", "DTS", "ESWAN", "MFQ_P", "APQ_SR", 
+        "ASSQ", "ARI_P", "SDQ", "SWAN", "SRS", "CBCL", "ICU_P", "APQ_P", "PCIAT", "IAT", "DTS", "ESWAN", "MFQ_P", "APQ_SR", 
         "WHODAS_P", "CIS_P", "PSI", "RBS", "PhenX_Neighborhood", "WHODAS_SR", "CIS_SR", "SCARED_SR", 
         "C3SR", "CCSC", "CPIC", "YSR", "PhenX_SchoolRisk", "CBCL_Pre", "SRS_Pre", "ASR"]]
 
@@ -223,15 +223,17 @@ def separate_item_lvl_from_scale_scores(data_up_to_dropped, columns_until_droppe
                         "CBCL,CBCL_Total_T",
                         "ICU_P,ICU_P_Total",
                         "APQ_P,APQ_P_Total",
-                        "PCIAT,PCIAT_Total",
+                        #"PCIAT,PCIAT_Total", # To predict
+                        #"IAT,IAT_Total", # To predict
                         "DTS,DTS_Total",
                         "MFQ_P,MFQ_P_Total",
                         "APQ_SR,APQ_SR_Total",
-                        #"WHODAS_P,WHODAS_P_Total", # Don't remove impairment scores - to predict
-                        #"CIS_P,CIS_P_Score", # Don't remove impairment scores - to predict
+                        #"WHODAS_P,WHODAS_P_Score", # Don't remove impairment scores - to predict
+                        #"CIS_P,CIS_P_Total", # Don't remove impairment scores - to predict
                         "PSI,PSI_Total",
                         "PSI,PSI_Total_T",
                         "RBS,RBS_Total",
+                        "SCARED_SR,SCARED_SR_Total",
                         #"WHODAS_SR,WHODAS_SR_Score", # Don't remove impairment scores - to predict
                         #"CIS_SR,CIS_SR_Total" # Don't remove impairment scores - to predict
                     ]
@@ -275,7 +277,7 @@ def remove_irrelavent_missing_markers(data_up_to_dropped, data_up_to_dropped_ite
         
     for col in was_missing_col_originals:
         if col not in data_up_to_dropped_total_scores.columns and col +"_WAS_MISSING" in data_up_to_dropped_total_scores.columns:
-            data_up_to_SCARED_total_scores = data_up_to_dropped_total_scores.drop(col+"_WAS_MISSING", axis=1)
+            data_up_to_dropped_total_scores = data_up_to_dropped_total_scores.drop(col+"_WAS_MISSING", axis=1)
         
     for col in was_missing_col_originals:
         if col not in data_up_to_dropped_subscale_scores.columns and col +"_WAS_MISSING" in data_up_to_dropped_subscale_scores.columns:
@@ -284,34 +286,24 @@ def remove_irrelavent_missing_markers(data_up_to_dropped, data_up_to_dropped_ite
     return data_up_to_dropped_item_lvl, data_up_to_dropped_total_scores, data_up_to_dropped_subscale_scores
 
 def export_datasets(data_up_to_dropped, data_up_to_dropped_item_lvl, data_up_to_dropped_total_scores, data_up_to_dropped_subscale_scores, data_output_dir):
-    ## Predicting impairment (remove impairment questionnaires from input)
-    impairment_assessments = ["WHODAS_SR,", "WHODAS_P,", "CIS_SR,", "CIS_P,"]
+    data_up_to_dropped_item_lvl.to_csv(data_output_dir + "item_lvl.csv", index=False)
+    data_up_to_dropped_subscale_scores.to_csv(data_output_dir + "subscale_scores.csv", index=False)
+    data_up_to_dropped_total_scores.to_csv(data_output_dir + "total_scores.csv", index=False)
 
-    impairment_columns = [] # All item-level impairment (keep total impairment scores for output)
-    for impairment_assessment in  impairment_assessments:
-        impairment_columns.extend([x for x in data_up_to_dropped if x.startswith(impairment_assessment) and x not in ["WHODAS_P,WHODAS_P_Total", "CIS_P,CIS_P_Score", "WHODAS_SR,WHODAS_SR_Score", "CIS_SR,CIS_SR_Total"]])
-
-    data_up_to_SCARED_item_lvl_wo_impairment = data_up_to_dropped_item_lvl[[x for x in data_up_to_dropped_item_lvl.columns if x not in impairment_columns]]
-    data_up_to_SCARED_subscale_scores_wo_impairment = data_up_to_dropped_subscale_scores[[x for x in data_up_to_dropped_subscale_scores.columns if x not in impairment_columns]]
-    data_up_to_SCARED_total_scores_wo_impairment = data_up_to_dropped_total_scores[[x for x in data_up_to_dropped_total_scores.columns if x not in impairment_columns]]
-
-    data_up_to_SCARED_item_lvl_wo_impairment.to_csv(data_output_dir + "item_lvl_wo_impairment.csv", index=False)
-    data_up_to_SCARED_subscale_scores_wo_impairment.to_csv(data_output_dir + "subscale_scores_wo_impairment.csv", index=False)
-    data_up_to_SCARED_total_scores_wo_impairment.to_csv(data_output_dir + "total_scores_wo_impairment.csv", index=False)
-
-    ## Predicting diagnoses
-    data_up_to_SCARED_item_lvl_w_impairment = data_up_to_dropped_item_lvl
-    data_up_to_SCARED_subscale_scores_w_impairment = data_up_to_dropped_subscale_scores
-    data_up_to_SCARED_total_scores_w_impairment = data_up_to_dropped_total_scores
-
-    data_up_to_SCARED_item_lvl_w_impairment.to_csv(data_output_dir + "item_lvl_w_impairment.csv", index=False)
-    data_up_to_SCARED_subscale_scores_w_impairment.to_csv(data_output_dir + "subscale_scores_w_impairment.csv", index=False)
-    data_up_to_SCARED_total_scores_w_impairment.to_csv(data_output_dir + "total_scores_w_impairment.csv", index=False)
+def print_ds_dims(data_up_to_dropped, data_up_to_dropped_item_lvl, data_up_to_dropped_total_scores, data_up_to_dropped_subscale_scores):
+    print("Data dimensions:")
+    print("Full dataset: ", data_up_to_dropped.shape)
+    print("Item level: ", data_up_to_dropped_item_lvl.shape)
+    print("Total scores: ", data_up_to_dropped_total_scores.shape)
+    print("Subscale scores: ", data_up_to_dropped_subscale_scores.shape)
 
 def main(only_assessment_distribution, first_assessment_to_drop):
     only_assessment_distribution = int(only_assessment_distribution)
 
     data_statistics_dir, data_output_dir = set_up_directories(first_assessment_to_drop)
+
+    output_cols = ["PCIAT,PCIAT_Total", "IAT,IAT_Total", "PreInt_EduHx,recent_grades", "WHODAS_P,WHODAS_P_Total", "WHODAS_SR,WHODAS_SR_Score", "CIS_P,CIS_P_Score", "CIS_SR,CIS_SR_Total"]
+    #output_cols = ["PCIAT,PCIAT_Total", "PreInt_EduHx,recent_grades"]
 
     # LORIS saved query (all data)
     full = pd.read_csv("data/raw/LORIS-release-10.csv", dtype=object)
@@ -339,8 +331,8 @@ def main(only_assessment_distribution, first_assessment_to_drop):
     EID_cols = [x for x in EID_cols if 'TRF' not in x]
     EID_cols = [x for x in EID_cols if 'DailyMeds' not in x]
 
-    # Remove incomplete DX and missing DX
-    full_wo_underscore = remove_incomplete_and_missing_diag(full_wo_underscore)    
+    # Remove rows with missing values in output cols
+    full_wo_underscore = remove_where_missing_output(full_wo_underscore, output_cols)    
 
     # Get list of assessments in data
     assessment_list = set([x.split(",")[0] for x in EID_cols])
@@ -418,6 +410,8 @@ def main(only_assessment_distribution, first_assessment_to_drop):
         # Export final datasets
         export_datasets(data_up_to_dropped, data_up_to_dropped_item_lvl, data_up_to_dropped_total_scores, data_up_to_dropped_subscale_scores, data_output_dir)
 
+        # Print final dataset dimensions
+        print_ds_dims(data_up_to_dropped, data_up_to_dropped_item_lvl, data_up_to_dropped_total_scores, data_up_to_dropped_subscale_scores)
 
 if __name__ == "__main__":
     main(sys.argv[1], sys.argv[2])
