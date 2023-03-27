@@ -1,14 +1,18 @@
 import os
-os.environ["PYTHONWARNINGS"] = "ignore::UserWarning" # Seems to be the only way to suppress multi-thread sklearn warnings
+#os.environ["PYTHONWARNINGS"] = "ignore::UserWarning" # Seems to be the only way to suppress multi-thread sklearn warnings
 
 import numpy as np
 import pandas as pd
 
 from sklearn.model_selection import KFold
+from sklearn.model_selection import StratifiedKFold ####
 
 from sklearn.ensemble import RandomForestRegressor
 from sklearn import svm
 from sklearn.linear_model import ElasticNet
+from sklearn.linear_model import LogisticRegression #####
+from sklearn.ensemble import RandomForestClassifier #####
+from sklearn.svm import SVC #####
 
 from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import StandardScaler
@@ -16,6 +20,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import make_pipeline
 
 from sklearn.model_selection import RandomizedSearchCV
+from sklearn.model_selection import GridSearchCV ####
 
 import sys, inspect
 
@@ -27,7 +32,7 @@ parentdir = os.path.dirname(currentdir)
 sys.path.insert(0, parentdir)
 import util, data, models, util
 
-DEBUG_MODE = False
+DEBUG_MODE = True
 
 def build_params_dict_for_dir_name():
 
@@ -90,6 +95,9 @@ def get_base_models_and_param_grids():
     rf = RandomForestRegressor(n_estimators=200 if DEBUG_MODE else 400)
     svr = svm.SVR()
     en = ElasticNet()
+    lr = LogisticRegression(solver="saga") #####
+    rf = RandomForestClassifier(n_estimators=200 if DEBUG_MODE else 400) #####
+    svr = SVC(probability=False) #####
     
     # Impute missing values
     imputer = SimpleImputer(missing_values=np.nan, strategy='median')
@@ -101,6 +109,9 @@ def get_base_models_and_param_grids():
     rf_pipe = make_pipeline(imputer, scaler, rf)
     svr_pipe = make_pipeline(imputer, scaler, svr)
     en_pipe = make_pipeline(imputer, scaler, en)
+    lr_pipe = make_pipeline(imputer, scaler, lr) #####
+    rf_pipe = make_pipeline(imputer, scaler, rf) #####
+    svc_pipe = make_pipeline(imputer, scaler, svr) #####
 
     # Define parameter grids to search for each pipe
     from scipy.stats import loguniform, uniform
@@ -122,24 +133,57 @@ def get_base_models_and_param_grids():
         'elasticnet__alpha': loguniform(1e-5, 100),
         'elasticnet__l1_ratio': uniform(0, 1)
     }
+    lr_param_grid = {
+        'logisticregression__C': loguniform(1e-5, 1e4),
+        'logisticregression__penalty': ['l1', 'l2', 'elasticnet'],
+        'logisticregression__class_weight': ['balanced', None],
+        'logisticregression__l1_ratio': uniform(0, 1)
+    } #####
+    rf_param_grid = {
+        'randomforestclassifier__max_depth' : np.random.randint(5, 150, 30),
+        'randomforestclassifier__min_samples_split': np.random.randint(2, 50, 30),
+        'randomforestclassifier__min_samples_leaf': np.random.randint(1, 20, 30),
+        'randomforestclassifier__max_features': ['auto', 'sqrt', 'log2', 0.25, 0.5, 0.75, 1.0],
+        'randomforestclassifier__criterion': ['gini', 'entropy'],
+        'randomforestclassifier__class_weight':["balanced", "balanced_subsample", None],
+        "randomforestclassifier__class_weight": ['balanced', None]
+    } #####
+    svc_param_grid = {
+        'svc__C': loguniform(1e-1, 1e3),
+        'svc__gamma': loguniform(1e-04, 1e+01),
+        'svc__degree': uniform(2, 5),
+        'svc__kernel': ['linear', 'poly', 'rbf', 'sigmoid'],
+        "svc__class_weight": ['balanced', None]
+    }
+    svc_param_grid = {
+        'svc__C': [0.1, 1, 10, 100, 1000],
+        'svc__kernel': ['linear', 'rbf', 'sigmoid'],
+        'svc__gamma': [0.01, 0.1, 1, 10, 100],
+        'svc__class_weight': [None, 'balanced']
+    }
     
     base_models_and_param_grids = [
         (rf_pipe, rf_param_grid),
         (svr_pipe, svr_param_grid),
-        (en_pipe, en_param_grid)
+        (en_pipe, en_param_grid),
+        (lr_pipe, lr_param_grid), #####
+        (rf_pipe, rf_param_grid), #####
+        (svc_pipe, svc_param_grid) #####
     ]
     if DEBUG_MODE:
-        #base_models_and_param_grids = [base_models_and_param_grids[-1]] # Only do LR in debug mode
-        base_models_and_param_grids = base_models_and_param_grids
+        base_models_and_param_grids = [base_models_and_param_grids[-3]] # Only do LR in debug mode
+        #base_models_and_param_grids = base_models_and_param_grids
 
     return base_models_and_param_grids
 
 def get_best_estimator(base_model, grid, X_train, y_train):
     cv = KFold(n_splits=3 if DEBUG_MODE else 8)
-    rs = RandomizedSearchCV(estimator=base_model, param_distributions=grid, cv=cv, scoring="r2", n_iter=50 if DEBUG_MODE else 200, n_jobs = -1, verbose=1) #neg_mean_absolute_error
+    #rs = RandomizedSearchCV(estimator=base_model, param_distributions=grid, cv=cv, scoring="r2", n_iter=50 if DEBUG_MODE else 200, n_jobs = -1, verbose=1) #neg_mean_absolute_error
+    rs = RandomizedSearchCV(estimator=base_model, param_distributions=grid, cv=StratifiedKFold(3), scoring="accuracy", n_iter=50 if DEBUG_MODE else 200, n_jobs = -1, verbose=1)  #####
     
     print("Fitting", base_model, "...")
     print(y_train.dtype)
+    print(y_train.value_counts())
     rs.fit(X_train, y_train) 
     
     best_estimator = rs.best_estimator_
@@ -148,6 +192,7 @@ def get_best_estimator(base_model, grid, X_train, y_train):
 
     if DEBUG_MODE and (util.get_base_model_name_from_pipeline(best_estimator) == "elasticnet" or 
                         util.get_base_model_name_from_pipeline(best_estimator) == "linearregression"):
+                       # util.get_base_model_name_from_pipeline(best_estimator) == "logisticregression"): ####
         # In debug mode print top features from LR
         models.print_top_features_from_lr(best_estimator, X_train, 10)
 
@@ -170,13 +215,13 @@ def find_best_estimator_for_output_and_its_score(X_train, y_train, performance_m
     
     # If elasticnet is not much worse than the best model, prefer elasticnet (much faster than rest)
     best_base_model = best_estimators_and_scores[best_estimators_and_scores["Best estimator"] == best_estimator]["Model type"].iloc[0]
-    if best_base_model != "elasticnet":
-        lr_score = best_estimators_and_scores[best_estimators_and_scores["Model type"] == "elasticnet"]["Best score"].iloc[0]
-        print("lr_score: ", lr_score, "; best_score: ", best_score)
-        if best_score - lr_score <= performance_margin:
-            best_estimator = best_estimators_and_scores[best_estimators_and_scores["Model type"] == "elasticnet"]["Best estimator"].iloc[0]
-            best_score = best_estimators_and_scores[best_estimators_and_scores["Best estimator"] == best_estimator]["Best score"].iloc[0]
-            sd_of_score_of_best_estimator = best_estimators_and_scores[best_estimators_and_scores["Best estimator"] == best_estimator]["SD of best score"].iloc[0]
+    # if best_base_model != "elasticnet": ####
+    #     lr_score = best_estimators_and_scores[best_estimators_and_scores["Model type"] == "elasticnet"]["Best score"].iloc[0]
+    #     print("lr_score: ", lr_score, "; best_score: ", best_score)
+    #     if best_score - lr_score <= performance_margin:
+    #         best_estimator = best_estimators_and_scores[best_estimators_and_scores["Model type"] == "elasticnet"]["Best estimator"].iloc[0]
+    #         best_score = best_estimators_and_scores[best_estimators_and_scores["Best estimator"] == best_estimator]["Best score"].iloc[0]
+    #         sd_of_score_of_best_estimator = best_estimators_and_scores[best_estimators_and_scores["Best estimator"] == best_estimator]["SD of best score"].iloc[0]
         
     print("best estimator:")
     print(best_estimator)
@@ -238,8 +283,8 @@ def main(performance_margin = 0.02, models_from_file = 1):
     # Print dataset shape
     print("Full dataset shape: ", full_dataset.shape)
 
-    output_cols = ["PCIAT,PCIAT_Total", "IAT,IAT_Total", "PreInt_EduHx,recent_grades", "WHODAS_P,WHODAS_P_Total", "WHODAS_SR,WHODAS_SR_Score", "CIS_P,CIS_P_Score", "CIS_SR,CIS_SR_Total"]
-    #output_cols = ["PCIAT,PCIAT_Total", "PreInt_EduHx,recent_grades"]
+    #output_cols = ["PCIAT,PCIAT_Total", "IAT,IAT_Total", "PreInt_EduHx,recent_grades", "WHODAS_P,WHODAS_P_Total", "WHODAS_SR,WHODAS_SR_Score", "CIS_P,CIS_P_Score", "CIS_SR,CIS_SR_Total"]
+    output_cols = ["PCIAT,PCIAT_Total", "PreInt_EduHx,recent_grades", "CIS_P,CIS_P_Score", "CIS_SR,CIS_SR_Total"]
 
     split_percentage = 0.2
 
