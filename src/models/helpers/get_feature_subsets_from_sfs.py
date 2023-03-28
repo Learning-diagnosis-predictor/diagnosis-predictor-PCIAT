@@ -1,4 +1,4 @@
-from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection import KFold
 
 DEBUG_MODE = True
 
@@ -8,12 +8,11 @@ def get_sfs_object(diag, best_estimators, number_of_features_to_check, X_train, 
     print("Fitting SFS...")
     diag_estimator = best_estimators[diag]
 
-    cv = StratifiedKFold(n_splits=2 if DEBUG_MODE else 8)
     sfs = SequentialFeatureSelector(diag_estimator, 
         k_features=number_of_features_to_check,
         forward=True, 
-        scoring='roc_auc',
-        cv=cv,
+        scoring='neg_mean_absolute_error',
+        cv=KFold(n_splits=2 if DEBUG_MODE else 8),
         floating=True, 
         verbose=1,
         n_jobs=-1)
