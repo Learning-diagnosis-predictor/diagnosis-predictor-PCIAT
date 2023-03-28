@@ -3,9 +3,10 @@ os.environ["PYTHONWARNINGS"] = "ignore::UserWarning" # Seems to be the only way 
 
 import pandas as pd
 import numpy as np
-import sys
 
-from sklearn.metrics import roc_auc_score
+from sklearn.metrics import mean_absolute_error
+
+import sys
 
 # To import from parent directory
 currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
@@ -43,58 +44,52 @@ def set_up_directories(use_test_set):
 
     return {"input_data_dir": input_data_dir, "models_dir": models_dir, "input_reports_dir": input_reports_dir, "output_reports_dir": output_reports_dir}
 
-def add_number_of_positive_examples(results, datasets):
-    for diag in datasets:
-        full_dataset_y = datasets[diag]["y_train"].append(datasets[diag]["y_test"]) # Reconstruct full dataset from train and test
-        results.loc[results["Diag"] == diag, "# of Positive Examples"] = full_dataset_y.sum()
+def add_output_col_values_range(results, datasets):
+    for output in datasets:
+        full_dataset_y = datasets[output]["y_train"].append(datasets[output]["y_test"]) # Reconstruct full dataset from train and test
+        results.loc[results["Output"] == output, "Min value"] = min(full_dataset_y)
+        results.loc[results["Output"] == output, "Max value"] = max(full_dataset_y)
     return results
 
-def get_roc_auc(X, y, estimator):
-    y_pred_prob = estimator.predict_proba(X)
-    roc_auc = roc_auc_score(y, y_pred_prob[:,1])
-    return roc_auc
+def get_mae(X, y, estimator):
+    y_pred = estimator.predict(X)
+    mae = mean_absolute_error(y, y_pred)
+    return mae
 
-def get_aucs_on_test_set(best_estimators, datasets, use_test_set, diag_cols):
-    aucs = {}
-    
-    for diag in diag_cols:
-        print(diag)
-        print(util.get_base_model_name_from_pipeline(best_estimators[diag]))
-        estimator = best_estimators[diag]
-    
-        if use_test_set == 1:
-            X, y = datasets[diag]["X_test"], datasets[diag]["y_test"] 
-            X_hc, y_hc = datasets[diag]["X_test_only_healthy_controls"], datasets[diag]["y_test_only_healthy_controls"]
-        else:
-            X, y = datasets[diag]["X_val"], datasets[diag]["y_val"]
-            X_hc, y_hc = datasets[diag]["X_val_only_healthy_controls"], datasets[diag]["y_val_only_healthy_controls"]
-
-        roc_auc = get_roc_auc(X, y, estimator)
-
-        # Only calculate ROC AUC on healthy controls if diag is not Diag.No Diagnosis Given
-        roc_auc_hc = get_roc_auc(X_hc, y_hc, estimator) if diag != "Diag.No Diagnosis Given" else np.nan
+def get_maes_on_test_set(best_estimators, datasets, use_test_set, output_cols):
+    maes = {}
+    for output in output_cols:
+        print(output)
+        print(util.get_base_model_name_from_pipeline(best_estimators[output]))
+        estimator = best_estimators[output]
         
-        aucs[diag] = [roc_auc, roc_auc_hc]
+        if use_test_set == 1:
+            X, y = datasets[output]["X_test"], datasets[output]["y_test"]
+        else:
+            X, y = datasets[output]["X_val"], datasets[output]["y_val"]
 
-    # Example of aucs: {'Diag1': [0.5, 0.4], 'Diag2': [0.6, 0.5], 'Diag3': [0.7, 0.6]}
+        mae = get_mae(X, y, estimator)
+        maes[output] = mae
+
+    # Example of scores: {'Output1': 0.5, 'Output2': 0.6, 'Output3': 0.7}
     # Convert to a dataframe
-    results = pd.DataFrame.from_dict(aucs, columns=["ROC AUC", "ROC AUC Healthy Controls"], orient="index").sort_values("ROC AUC", ascending=False).reset_index().rename(columns={'index': 'Diag'})
+    results = pd.DataFrame.from_dict(maes, columns=["MAE"], orient="index").sort_values("MAE", ascending=False).reset_index().rename(columns={'index': 'Output'})
     print(results)
-    results = add_number_of_positive_examples(results, datasets)
+    results = add_output_col_values_range(results, datasets)
 
-    return results.sort_values(by="ROC AUC", ascending=False)
+    return results
 
-def get_aucs_cv_from_grid_search(reports_dir, diag_cols):
+def get_maes_cv_from_grid_search(reports_dir, output_cols):
     auc_cv_from_grid_search = pd.read_csv(reports_dir + "df_of_best_estimators_and_their_scores.csv")
-    auc_cv_from_grid_search = auc_cv_from_grid_search[auc_cv_from_grid_search["Diag"].isin(diag_cols)][["Diag", "Best score", "SD of best score", "Score - SD"]]
-    auc_cv_from_grid_search.columns = ["Diag", "ROC AUC Mean CV", "ROC AUC SD CV", "ROC AUC Mean CV - SD"]
+    auc_cv_from_grid_search = auc_cv_from_grid_search[auc_cv_from_grid_search["Output"].isin(output_cols)][["Output", "Best score", "SD of best score", "Score - SD"]]
+    auc_cv_from_grid_search.columns = ["Output", "MAE Mean CV", "MAE SD CV", "MAE Mean CV - SD"]
     return auc_cv_from_grid_search
 
-def get_roc_aucs(best_estimators, datasets, use_test_set, diag_cols, input_reports_dir):
-    roc_aucs_cv_from_grid_search = get_aucs_cv_from_grid_search(input_reports_dir, diag_cols)
-    roc_aucs_on_test_set = get_aucs_on_test_set(best_estimators, datasets, use_test_set=use_test_set, diag_cols=diag_cols)
-    roc_aucs = roc_aucs_cv_from_grid_search.merge(roc_aucs_on_test_set, on="Diag").sort_values(by="ROC AUC Mean CV - SD", ascending=False)
-    return roc_aucs
+def get_maes(best_estimators, datasets, use_test_set, output_cols, input_reports_dir):
+    maes_cv_from_grid_search = get_maes_cv_from_grid_search(input_reports_dir, output_cols)
+    maes_on_test_set = get_maes_on_test_set(best_estimators, datasets, use_test_set=use_test_set, output_cols=output_cols)
+    maes = maes_cv_from_grid_search.merge(maes_on_test_set, on="Output").sort_values(by="MAE Mean CV - SD", ascending=False)
+    return maes
 
 def main(use_test_set=1):
     use_test_set = int(use_test_set)
@@ -104,16 +99,15 @@ def main(use_test_set=1):
     from joblib import load
     best_estimators = load(dirs["models_dir"]+'best-estimators.joblib')
     
-    diag_cols = best_estimators.keys()
+    output_cols = best_estimators.keys()
 
     datasets = load(dirs["input_data_dir"]+'datasets.joblib')
 
     # Print performances of models on validation set
-    roc_aucs = get_roc_aucs(best_estimators, datasets, use_test_set=use_test_set, 
-                            diag_cols=diag_cols, input_reports_dir=dirs["input_reports_dir"])
-    
+    maes = get_maes(best_estimators, datasets, use_test_set=use_test_set, output_cols=output_cols, input_reports_dir=dirs["input_reports_dir"])
+
     if use_test_set == 1:
-        roc_aucs.to_csv(dirs["output_reports_dir"]+"performance_table_all_features.csv", float_format='%.3f', index=False)    
+        maes.to_csv(dirs["output_reports_dir"]+"performance_table_all_features.csv", index=False)    
 
 if __name__ == "__main__":
     main(sys.argv[1])
