@@ -4,7 +4,10 @@ os.environ["PYTHONWARNINGS"] = "ignore::UserWarning" # Seems to be the only way 
 import pandas as pd
 import numpy as np
 
-from sklearn.metrics import mean_absolute_error
+from sklearn.metrics import mean_absolute_error, r2_score
+
+from matplotlib import pyplot as plt
+import math
 
 import sys
 
@@ -51,13 +54,8 @@ def add_output_col_values_range(results, datasets):
         results.loc[results["Output"] == output, "Max value"] = max(full_dataset_y)
     return results
 
-def get_mae(X, y, estimator):
-    y_pred = estimator.predict(X)
-    mae = mean_absolute_error(y, y_pred)
-    return mae
-
-def get_maes_on_test_set(best_estimators, datasets, use_test_set, output_cols):
-    maes = {}
+def get_scores_on_test_set(best_estimators, datasets, use_test_set, output_cols):
+    scores = {} # {output: [100, 0.5]} # First element is MAE, second is R2
     for output in output_cols:
         print(output)
         print(util.get_base_model_name_from_pipeline(best_estimators[output]))
@@ -68,28 +66,65 @@ def get_maes_on_test_set(best_estimators, datasets, use_test_set, output_cols):
         else:
             X, y = datasets[output]["X_val"], datasets[output]["y_val"]
 
-        mae = get_mae(X, y, estimator)
-        maes[output] = mae
+        y_pred = estimator.predict(X)
 
-    # Example of scores: {'Output1': 0.5, 'Output2': 0.6, 'Output3': 0.7}
+        mae = mean_absolute_error(y, y_pred) 
+        r2 = r2_score(y, y_pred)
+
+        scores[output] = [mae, r2]
+
     # Convert to a dataframe
-    results = pd.DataFrame.from_dict(maes, columns=["MAE"], orient="index").sort_values("MAE", ascending=False).reset_index().rename(columns={'index': 'Output'})
-    print(results)
+    results = pd.DataFrame.from_dict(scores, columns=["MAE", "R2"], orient="index").sort_values("R2", ascending=False).reset_index().rename(columns={'index': 'Output'})
     results = add_output_col_values_range(results, datasets)
 
     return results
 
 def get_maes_cv_from_grid_search(reports_dir, output_cols):
     auc_cv_from_grid_search = pd.read_csv(reports_dir + "df_of_best_estimators_and_their_scores.csv")
-    auc_cv_from_grid_search = auc_cv_from_grid_search[auc_cv_from_grid_search["Output"].isin(output_cols)][["Output", "Best score", "SD of best score", "Score - SD"]]
-    auc_cv_from_grid_search.columns = ["Output", "MAE Mean CV", "MAE SD CV", "MAE Mean CV - SD"]
+    auc_cv_from_grid_search = auc_cv_from_grid_search[auc_cv_from_grid_search["Output"].isin(output_cols)][["Output", "Best score"]]
+    auc_cv_from_grid_search.columns = ["Output", "MAE Mean CV"]
     return auc_cv_from_grid_search
 
-def get_maes(best_estimators, datasets, use_test_set, output_cols, input_reports_dir):
+def get_scores(best_estimators, datasets, use_test_set, output_cols, input_reports_dir):
     maes_cv_from_grid_search = get_maes_cv_from_grid_search(input_reports_dir, output_cols)
-    maes_on_test_set = get_maes_on_test_set(best_estimators, datasets, use_test_set=use_test_set, output_cols=output_cols)
-    maes = maes_cv_from_grid_search.merge(maes_on_test_set, on="Output").sort_values(by="MAE Mean CV - SD", ascending=False)
-    return maes
+    scores_on_test_set = get_scores_on_test_set(best_estimators, datasets, use_test_set=use_test_set, output_cols=output_cols)
+    
+    scores = maes_cv_from_grid_search.merge(scores_on_test_set, on="Output").sort_values("R2", ascending=False)
+    print(scores)
+    return scores
+
+def plot_actual_vs_predicted(best_estimators, datasets, output_cols, use_test_set, output_dir):
+    # Plot actual vs predicted values for each output on a subplot, make big plot as square as possible
+    n_outputs = len(output_cols)
+    n_cols = int(np.ceil(np.sqrt(n_outputs)))
+    n_rows = int(np.ceil(n_outputs / n_cols))
+    fig, axs = plt.subplots(n_rows, n_cols, figsize=(n_cols*5, n_rows*5))
+    axs = axs.flatten()
+
+    for i, output in enumerate(output_cols):
+
+        estimator = best_estimators[output]
+        if use_test_set == 1:
+            X, y = datasets[output]["X_test"], datasets[output]["y_test"]
+        else:
+            X, y = datasets[output]["X_val"], datasets[output]["y_val"]
+        y_pred = estimator.predict(X)
+
+        # Set x and y limits to be the same for all subplots
+        min_val = min(min(y), min(y_pred))
+        max_val = max(max(y), max(y_pred))
+        axs[i].set_xlim(min_val, max_val)
+        axs[i].set_ylim(min_val, max_val)
+
+        # Plot actual vs predicted values
+        axs[i].scatter(y, y_pred, alpha=0.5)
+        axs[i].set_xlabel("Actual")
+        axs[i].set_ylabel("Predicted")
+        axs[i].set_title(output)
+
+    plt.tight_layout()
+    plt.savefig(output_dir + "actual_vs_predicted.png")
+    plt.close()
 
 def main(use_test_set=1):
     use_test_set = int(use_test_set)
@@ -104,7 +139,10 @@ def main(use_test_set=1):
     datasets = load(dirs["input_data_dir"]+'datasets.joblib')
 
     # Print performances of models on validation set
-    maes = get_maes(best_estimators, datasets, use_test_set=use_test_set, output_cols=output_cols, input_reports_dir=dirs["input_reports_dir"])
+    maes = get_scores(best_estimators, datasets, use_test_set=use_test_set, output_cols=output_cols, input_reports_dir=dirs["input_reports_dir"])
+
+    # Print scatter plot of actual and predicted values
+    plot_actual_vs_predicted(best_estimators, datasets, output_cols, use_test_set=use_test_set, output_dir=dirs["output_reports_dir"])
 
     if use_test_set == 1:
         maes.to_csv(dirs["output_reports_dir"]+"performance_table_all_features.csv", index=False)    
