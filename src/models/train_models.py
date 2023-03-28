@@ -27,7 +27,7 @@ parentdir = os.path.dirname(currentdir)
 sys.path.insert(0, parentdir)
 import util, data, models, util
 
-DEBUG_MODE = False
+DEBUG_MODE = True
 
 def build_output_dir_name(params_from_create_datasets):
     # Part with the datetime
@@ -120,14 +120,14 @@ def get_base_models_and_param_grids():
         (en_pipe, en_param_grid)
     ]
     if DEBUG_MODE:
-        #base_models_and_param_grids = [base_models_and_param_grids[-1]] # Only do LR in debug mode
-        base_models_and_param_grids = base_models_and_param_grids
+        base_models_and_param_grids = [base_models_and_param_grids[-1]] # Only do LR in debug mode
+        #base_models_and_param_grids = base_models_and_param_grids
 
     return base_models_and_param_grids
 
 def get_best_estimator(base_model, grid, X_train, y_train):
     cv = KFold(n_splits=3 if DEBUG_MODE else 8)
-    rs = RandomizedSearchCV(estimator=base_model, param_distributions=grid, cv=cv, scoring="r2", n_iter=50 if DEBUG_MODE else 200, n_jobs = -1, verbose=1) #neg_mean_absolute_error
+    rs = RandomizedSearchCV(estimator=base_model, param_distributions=grid, cv=cv, scoring="neg_mean_absolute_error", n_iter=50 if DEBUG_MODE else 200, n_jobs = -1, verbose=1) #neg_mean_absolute_error
     
     print("Fitting", base_model, "...")
     print(y_train.dtype)
@@ -190,11 +190,17 @@ def find_best_estimators_and_scores(datasets, output_cols, performance_margin):
         sds_of_scores_of_best_estimators[output] = sd_of_score_of_best_estimator_for_output
         scores_of_best_estimators[output] = best_score_for_output
 
+        scores_of_best_estimators[output] = -best_score_for_output # Convert to positive score
+
         if DEBUG_MODE and util.get_base_model_name_from_pipeline(best_estimators[output]) == "elasticnet":
             # In debug mode print top features from LR
             models.print_top_features_from_lr(best_estimators[output], X_train, 10)
             
     return best_estimators, scores_of_best_estimators, sds_of_scores_of_best_estimators
+
+def get_output_col_values_range(full_dataset, output):
+    output_col_values = full_dataset[output].values
+    return(min(output_col_values), max(output_col_values))
 
 def build_df_of_best_estimators_and_their_score_sds(best_estimators, scores_of_best_estimators, sds_of_scores_of_best_estimators, full_dataset):
     best_estimators_and_score_sds = []
@@ -203,9 +209,9 @@ def build_df_of_best_estimators_and_their_score_sds(best_estimators, scores_of_b
         score_of_best_estimator = scores_of_best_estimators[output]
         sd_of_score_of_best_estimator = sds_of_scores_of_best_estimators[output]
         model_type = util.get_base_model_name_from_pipeline(best_estimator)
-        number_of_positive_examples = full_dataset[output].sum()
-        best_estimators_and_score_sds.append([output, model_type, best_estimator, score_of_best_estimator, sd_of_score_of_best_estimator, number_of_positive_examples])
-    best_estimators_and_score_sds = pd.DataFrame(best_estimators_and_score_sds, columns = ["Output", "Model type", "Best estimator", "Best score", "SD of best score", "Number of positive examples"])
+        output_col_values_range = get_output_col_values_range(full_dataset, output)
+        best_estimators_and_score_sds.append([output, model_type, best_estimator, score_of_best_estimator, sd_of_score_of_best_estimator, output_col_values_range[0], output_col_values_range[1]])
+    best_estimators_and_score_sds = pd.DataFrame(best_estimators_and_score_sds, columns = ["Output", "Model type", "Best estimator", "Best score", "SD of best score", "Min value", "Max value"])
     best_estimators_and_score_sds["Score - SD"] = best_estimators_and_score_sds['Best score'] - best_estimators_and_score_sds['SD of best score'] 
     return best_estimators_and_score_sds
 
@@ -224,7 +230,7 @@ def save_coefficients_of_lr_models(best_estimators, datasets, output_cols, outpu
 
 def main(performance_margin = 0.02, models_from_file = 1):
     models_from_file = int(models_from_file)
-    performance_margin = float(performance_margin) # Margin of error for ROC AUC (for prefering logistic regression over other models)
+    performance_margin = float(performance_margin) # Margin of error for ROC AUC (for prefering linear models over other models)
 
     dirs = set_up_directories()
     load_dirs = set_up_load_directories()
