@@ -214,9 +214,21 @@ def separate_item_lvl_from_scale_scores(data_up_to_dropped, columns_until_droppe
                         "PSI,PSI_Total",
                         "PSI,PSI_Total_T",
                         "RBS,RBS_Total",
+                        "SCARED_P,SCARED_P_Total",
                         "SCARED_SR,SCARED_SR_Total",
                         #"WHODAS_SR,WHODAS_SR_Score", # Don't remove impairment scores - to predict
-                        #"CIS_SR,CIS_SR_Total" # Don't remove impairment scores - to predict
+                        #"CIS_SR,CIS_SR_Total" # Don't remove impairment scores - to predict,
+                        # "C3SR,C3SR_Total", # Doesn't have a total
+                        # "CCSC,CCSC_Total",  # Doesn't have a total
+                        # "CPIC,CPIC_Total", # Doesn't have a total
+                        "YSR,YSR_Total",
+                        "YSR,YSR_Total_T",
+                        "CBCL_Pre,CBCL_Pre_Total",
+                        "CBCL_Pre,CBCL_Pre_Total_T",
+                        "SRS_Pre,SRS_Pre_Total",
+                        "SRS_Pre,SRS_Pre_Total_T",
+                        "ASR,ASR_Total",
+                        "ASR,ASR_Total_T",
                     ]
     total_score_raw_cols = [x.strip("_T") for x in total_score_cols_w_raw if x.endswith("_T")]
     subscale_score_cols_w_raw = ["Barratt,Barratt_Total_Edu", "Barratt,Barratt_Total_Occ",
@@ -238,7 +250,7 @@ def separate_item_lvl_from_scale_scores(data_up_to_dropped, columns_until_droppe
                         "CPIC,CPIC_Frequency_Total", "CPIC,CPIC_Intensity_Total", "CPIC,CPIC_Resolution_Total", "CPIC,CPIC_Content_Total", "CPIC,CPIC_Perceived_Threat_Total", "CPIC,CPIC_Self_Blame_Total", "CPIC,CPIC_Triangulation_Total", "CPIC,CPIC_Stability_Total",
                         "YSR,YSR_AB", "YSR,YSR_AB_T", "YSR,YSR_AD", "YSR,YSR_AD_T", "YSR,YSR_AP", "YSR,YSR_AP_T", "YSR,YSR_WD", "YSR,YSR_WD_T", "YSR,YSR_RBB", "YSR,YSR_RBB_T", "YSR,YSR_SC", "YSR,YSR_SC_T", "YSR,YSR_SP", "YSR,YSR_SP_T", "YSR,YSR_TP", "YSR,YSR_TP_T", "YSR,YSR_Ext", "YSR,YSR_Ext_T", "YSR,YSR_Int", "YSR,YSR_Int_T", "YSR,YSR_OP", "YSR,YSR_C", "YSR,YSR_Total", "YSR,YSR_Total_T",
                         "CBCL_Pre,CBCL_Pre_AB", "CBCL_Pre,CBCL_Pre_AB_T", "CBCL_Pre,CBCL_Pre_AD", "CBCL_Pre,CBCL_Pre_AD_T", "CBCL_Pre,CBCL_Pre_AP", "CBCL_Pre,CBCL_Pre_AP_T", "CBCL_Pre,CBCL_Pre_SC", "CBCL_Pre,CBCL_Pre_SC_T", "CBCL_Pre,CBCL_Pre_SP", "CBCL_Pre,CBCL_Pre_SP_T", "CBCL_Pre,CBCL_Pre_WD", "CBCL_Pre,CBCL_Pre_WD_T", "CBCL_Pre,CBCL_Pre_Ext", "CBCL_Pre,CBCL_Pre_Ext_T", "CBCL_Pre,CBCL_Pre_Int", "CBCL_Pre,CBCL_Pre_Int_T", "CBCL_Pre,CBCL_Pre_DSM_ADHP", "CBCL_Pre,CBCL_Pre_DSM_ADHP_T", "CBCL_Pre,CBCL_Pre_DSM_AnxP", "CBCL_Pre,CBCL_Pre_DSM_AnxP_T", "CBCL_Pre,CBCL_Pre_DSM_AP", "CBCL_Pre,CBCL_Pre_DSM_AP_T", "CBCL_Pre,CBCL_Pre_DSM_ODP", "CBCL_Pre,CBCL_Pre_DSM_ODP_T", "CBCL_Pre,CBCL_Pre_DSM_PDP", "CBCL_Pre,CBCL_Pre_DSM_PDP_T", "CBCL_Pre,CBCL_Pre_OP", "CBCL_Pre,CBCL_Pre_Total", "CBCL_Pre,CBCL_Pre_Total_T",
-                        "SRS_Pre,SRS_Pre_AWR_T", "SRS_Pre,SRS_Pre_AWR", "SRS_Pre,SRS_Pre_COG_T", "SRS_Pre,SRS_Pre_COG", "SRS_Pre,SRS_Pre_COM_T", "SRS_Pre,SRS_Pre_COM", "SRS_Pre,SRS_Pre_DSMRRB_T", "SRS_Pre,SRS_Pre_DSMRRB", "SRS_Pre,SRS_Pre_MOT_T", "SRS_Pre,SRS_Pre_MOT", "SRS_Pre,SRS_Pre_RRB_T", "SRS_Pre,SRS_Pre_RRB", "SRS_Pre,SRS_Pre_SCI_T", "SRS,SRS_Pre_SCI",
+                        # SRS_Pre subscales have the same names as SRS subscales, rename them if you want to use them!,
                         "ASR,ASR_AD", "ASR,ASR_AD_T", "ASR,ASR_WD", "ASR,ASR_WD_T", "ASR,ASR_SC", "ASR,ASR_SC_T", "ASR,ASR_TP", "ASR,ASR_TP_T", "ASR,ASR_AP", "ASR,ASR_AP_T", "ASR,ASR_RBB", "ASR,ASR_RBB_T", "ASR,ASR_AB", "ASR,ASR_AB_T", "ASR,ASR_OP", "ASR,ASR_Int", "ASR,ASR_Int_T", "ASR,ASR_Ext", "ASR,ASR_Ext_T", "ASR,ASR_Intrusive", "ASR,ASR_Intrusive_T", "ASR,ASR_C", 
                         ]
     subscale_score_raw_cols = [x.strip("_T") for x in subscale_score_cols_w_raw if x.endswith("_T")]
