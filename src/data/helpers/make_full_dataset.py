@@ -306,7 +306,7 @@ def make_full_dataset(only_assessment_distribution, first_assessment_to_drop, on
     if only_free_assessments == 1:
         relevent_assessments_list = remove_proprietary_assessments(relevent_assessments_list)
 
-    output_cols = ["PCIAT,PCIAT_Total", "IAT,IAT_Total", "PreInt_EduHx,recent_grades", "WHODAS_P,WHODAS_P_Total", "WHODAS_SR,WHODAS_SR_Score", "CIS_P,CIS_P_Score", "CIS_SR,CIS_SR_Total"]
+    output_cols = ["PCIAT,PCIAT_Total", "IAT,IAT_Total", "PreInt_EduHx,recent_grades", "WHODAS_P,WHODAS_P_Total", "WHODAS_SR,WHODAS_SR_Score", "CIS_P,CIS_P_Score", "CIS_SR,CIS_SR_Total", "WISC,WISC_PSI"]
     #output_cols = ["PCIAT,PCIAT_Total", "PreInt_EduHx,recent_grades"]
 
     # LORIS saved query (all data)
