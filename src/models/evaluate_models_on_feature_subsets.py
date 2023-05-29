@@ -36,7 +36,7 @@ def set_up_directories():
     print("Reading reports from: " + input_reports_dir)
     
     # Output dirs
-    params_from_previous_script = models.get_params_from_current_data_dir_name(input_data_dir)
+    params_from_previous_script = models.get_params_from_current_data_dir_name(input_models_dir)
     current_output_dir_name = build_output_dir_name(params_from_previous_script)
     
     output_models_dir = data_dir + "models/" + "evaluate_models_on_feature_subsets/" + current_output_dir_name + "/"
@@ -50,7 +50,7 @@ def set_up_directories():
 def set_up_load_directories():
     data_dir = "../diagnosis_predictor_PCIAT_data/"
     load_reports_dir = models.get_newest_non_empty_dir_in_dir(data_dir+ "reports/evaluate_models_on_feature_subsets/")
-    load_models_dir = models.get_newest_non_empty_dir_in_dir(data_dir + "models/" + "evaluate_models_on_feature_subsets/")
+    load_models_dir = models.get_newest_non_empty_dir_in_dir(data_dir + "models/evaluate_models_on_feature_subsets/")
     return {"load_reports_dir": load_reports_dir, "load_models_dir": load_models_dir}
 
 def make_and_write_cv_r2_table(r2_on_subsets, dir):
@@ -69,6 +69,7 @@ def make_performance_table(performances_on_feature_subsets):
     
     for output in performances_on_feature_subsets:
         # Each row in the table will have the output and then each columns will be the performance for each number of features
+        print(performances_on_feature_subsets[output])
         output_row_r2 = [output] +  list(performances_on_feature_subsets[output].values())
         r2_table.append(output_row_r2)
     
@@ -93,9 +94,9 @@ def make_performance_table(performances_on_feature_subsets):
 def get_and_write_optimal_nbs_features(r2_table, dir):
     optimal_nbs_features = {}
 
-    for diag in auc_table.columns:
-        # Get max score at number of features in the longest subcsale among those that perform best for each diag (from HBN-scripts repo)
-        max_score = auc_table[diag].iloc[0:27].max() 
+    for output in r2_table.columns:
+        # Get max score at number of features in the longest subcsale among those that perform best for each output (from HBN-scripts repo)
+        max_score = r2_table[output].iloc[0:27].max() 
     for output in r2_table.columns:
         max_score = r2_table[output].max()
         optimal_score = max_score - 0.01
@@ -122,23 +123,27 @@ def main(models_from_file = 1):
 
     if DEBUG_MODE == True:
         # In debug mode, only use first output
-        datasets = {list(datasets.keys())[0]: datasets[list(datasets.keys())[0]]}
-        feature_subsets = {list(feature_subsets.keys())[0]: feature_subsets[list(feature_subsets.keys())[0]]}
-        best_estimators = {list(best_estimators.keys())[0]: best_estimators[list(best_estimators.keys())[0]]}
+        #datasets = {list(datasets.keys())[0]: datasets[list(datasets.keys())[0]]}
+        #feature_subsets = {list(feature_subsets.keys())[0]: feature_subsets[list(feature_subsets.keys())[0]]}
+        #best_estimators = {list(best_estimators.keys())[0]: best_estimators[list(best_estimators.keys())[0]]}
+        pass
 
     if models_from_file == 1:
         load_dirs = set_up_load_directories()
 
         performances_on_feature_subsets = load(load_dirs["load_reports_dir"]+'performances-on-feature-subsets.joblib')    
         cv_scores_on_feature_subsets = load(load_dirs["load_reports_dir"]+'cv-scores-on-feature-subsets.joblib')
+        estimators_on_feature_subsets = load(load_dirs["load_models_dir"]+'estimators-on-feature-subsets.joblib')
 
         # Save reports to newly created directories
         dump(performances_on_feature_subsets, dirs["output_reports_dir"]+'performances-on-feature-subsets.joblib')
         dump(cv_scores_on_feature_subsets, dirs["output_reports_dir"]+'cv-scores-on-feature-subsets.joblib')
     else:
-        performances_on_feature_subsets, cv_scores_on_feature_subsets = models.get_performances_on_feature_subsets(feature_subsets, datasets, best_estimators, use_test_set = 1)
+        estimators_on_feature_subsets = models.re_train_models_on_feature_subsets(feature_subsets, datasets, best_estimators)
+        performances_on_feature_subsets, cv_scores_on_feature_subsets = models.get_performances_on_feature_subsets(feature_subsets, datasets, best_estimators, estimators_on_feature_subsets, use_test_set = 1)
         dump(performances_on_feature_subsets, dirs["output_reports_dir"]+'performances-on-feature-subsets.joblib')
         dump(cv_scores_on_feature_subsets, dirs["output_reports_dir"]+'cv-scores-on-feature-subsets.joblib')
+        dump(estimators_on_feature_subsets, dirs["output_models_dir"]+'estimators-on-feature-subsets.joblib')
     
     cv_r2_table = make_and_write_cv_r2_table(cv_scores_on_feature_subsets, dirs["output_reports_dir"])
     optimal_nbs_features = get_and_write_optimal_nbs_features(cv_r2_table, dirs["output_reports_dir"])

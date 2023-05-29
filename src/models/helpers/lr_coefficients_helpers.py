@@ -30,7 +30,7 @@ def print_top_features_from_lr(pipeline, data, n):
     print(df.head(n))
     print(df.tail(n))
 
-def save_coefficients_from_lr(diag, pipeline, data, output_dir):
+def save_coefficients_from_lr(output, pipeline, data, output_dir):
     # Create a dataframe of the coefficients and feature names
     df = get_coefficients_df_from_lr(pipeline, data)
     # Sort the dataframe by the coefficients
@@ -40,4 +40,4 @@ def save_coefficients_from_lr(diag, pipeline, data, output_dir):
     coef_dir = output_dir + "coefficients/"
     util.create_dir_if_not_exists(coef_dir)
     ## Save to file
-    df.to_csv(coef_dir + f'{diag}_coefficients.csv', float_format='%.3f', index=False)
+    df.to_csv(coef_dir + f'{output}_coefficients.csv', float_format='%.3f', index=False)

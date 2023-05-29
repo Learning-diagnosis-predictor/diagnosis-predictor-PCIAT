@@ -20,6 +20,19 @@ def remove_proprietary_assessments(relevant_assessment_list):
     proprietary_assessments = ["ASR", "CBCL", "CBCL_Pre", "C3SR", "PCIAT", "RBS", "SCQ", "SRS", "SRS_Pre", "YSR", "Barratt", "PSI"]
 
     return [x for x in relevant_assessment_list if x not in proprietary_assessments]
+
+def remove_irrelevant_nih_cols(full):
+    NIH_cols = [x for x in full.columns if "NIH" in x]
+    NIH_scores_cols = [x for x in NIH_cols if x.startswith("NIH_Scores,")]
+
+    # Drop percentile scores, only keep actual score
+    NIH_cols_to_drop = [x for x in NIH_scores_cols if x.endswith("_P")]
+    full = full.drop(NIH_cols_to_drop, axis = 1)
+
+    # Drop non-numeric columns
+    full = full.drop(["NIH_Scores,NIH7_Incomplete_Reason"], axis = 1)
+
+    return full
     
 def remove_admin_cols(full):
     # Remove uninteresting columns
@@ -293,21 +306,20 @@ def export_datasets(data_up_to_dropped_item_lvl, data_up_to_dropped_total_scores
     data_up_to_dropped_subscale_scores.to_csv(data_output_dir + "subscale_scores.csv", index=False)
     data_up_to_dropped_total_scores.to_csv(data_output_dir + "total_scores.csv", index=False)
 
-def make_full_dataset(only_assessment_distribution, first_assessment_to_drop, only_free_assessments, dirs):
+def make_full_dataset(only_assessment_distribution, first_assessment_to_drop, only_free_assessments, dirs, output_cols):
 
     # Get relevant assessments: 
     #   relevant cognitive tests, Questionnaire Measures of Emotional and Cognitive Status, and 
     #   Questionnaire Measures of Family Structure, Stress, and Trauma (from Assessment_List_Jan2019.xlsx)
-    relevent_assessments_list = ["Basic_Demos", "PreInt_EduHx", "PreInt_DevHx", "SympChck", "SCQ", "Barratt", 
+    relevent_assessments_list = ["Basic_Demos", "PreInt_EduHx", "PreInt_DevHx", "NIH_Scores", "SympChck", "SCQ", "Barratt", 
         "ASSQ", "ARI_P", "SDQ", "SWAN", "SRS", "CBCL", "ICU_P", "ICU_SR", "PANAS", "APQ_P", "PCIAT", "DTS", "ESWAN", "MFQ_P", "APQ_SR", 
         "WHODAS_P", "CIS_P", "SAS", "PSI", "RBS", "PhenX_Neighborhood", "WHODAS_SR", "CIS_SR", "SCARED_P", "SCARED_SR", 
-        "C3SR", "CCSC", "CPIC", "YSR", "PhenX_SchoolRisk", "CBCL_Pre", "SRS_Pre", "ASR"]
+        "C3SR", "CCSC", "CPIC", "YSR", "PhenX_SchoolRisk", "CBCL_Pre", "SRS_Pre", "ASR", 
+        "WISC", "IAT", "PCIAT" # Specific to continuous output prediction repo
+        ]  
     
     if only_free_assessments == 1:
         relevent_assessments_list = remove_proprietary_assessments(relevent_assessments_list)
-
-    output_cols = ["PCIAT,PCIAT_Total", "IAT,IAT_Total", "PreInt_EduHx,recent_grades", "WHODAS_P,WHODAS_P_Total", "WHODAS_SR,WHODAS_SR_Score", "CIS_P,CIS_P_Score", "CIS_SR,CIS_SR_Total", "WISC,WISC_PSI"]
-    #output_cols = ["PCIAT,PCIAT_Total", "PreInt_EduHx,recent_grades"]
 
     # LORIS saved query (all data)
     full = pd.read_csv("data/raw/LORIS-release-10.csv", dtype=object)
@@ -320,6 +332,9 @@ def make_full_dataset(only_assessment_distribution, first_assessment_to_drop, on
 
     # Drop empty columns
     full = full.dropna(how='all', axis=1)
+
+    # Remove irrelevant NIH toolbox columns
+    full = remove_irrelevant_nih_cols(full)
 
     full = remove_admin_cols(full)
 

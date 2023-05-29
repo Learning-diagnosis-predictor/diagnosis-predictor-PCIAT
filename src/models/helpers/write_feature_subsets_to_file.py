@@ -19,16 +19,16 @@ def make_coef_dict(feature_list, estimator):
     coef_dict = {}
 
     # If model doesn't have coeffieicents, make values empty
-    if util.get_base_model_name_from_pipeline(estimator) not in ["logisticregression", "svc"]:
+    if util.get_base_model_name_from_pipeline(estimator) != "elasticnet":
         for item in feature_list:
             coef_dict[item] = ""
             warnings.warn("Model doesn't have coefficients, can't prepend coefficients to item names")
         return coef_dict
 
-    if util.get_base_model_name_from_pipeline(estimator) == "logisticregression":
-        coef = estimator.named_steps["logisticregression"].coef_[0]
+    if util.get_base_model_name_from_pipeline(estimator) == "elasticnet":
+        coef = estimator.named_steps["elasticnet"].coef_
     else:
-        coef = estimator.named_steps["svc"].coef_[0]
+        coef = estimator.named_steps["svm"].coef_[0] # Add your models here is you use something else like SVM
     
     # Make dict with coefficients
     for item, coef_value in zip(feature_list, coef):
@@ -56,31 +56,30 @@ def make_name_and_value_dict(feature_list):
 
 def append_names_and_coef_to_feature_subsets(feature_subsets, estimators_on_subsets):
     feature_subsets_with_names_and_coefs = {}
-    for diag in feature_subsets.keys():
-        feature_subsets_with_names_and_coefs[diag] = {}
+    for output in feature_subsets.keys():
+        feature_subsets_with_names_and_coefs[output] = {}
 
-        if diag not in list(estimators_on_subsets.keys()):
-            feature_subsets_with_names_and_coefs[diag] = feature_subsets[diag]
-            warnings.warn(f"Estimators on subsets for {diag} not found, skipping appending names and coefs")
+        if output not in list(estimators_on_subsets.keys()):
+            feature_subsets_with_names_and_coefs[output] = feature_subsets[output]
+            warnings.warn(f"Estimators on subsets for {output} not found, skipping appending names and coefs")
             continue
 
-        for subset in feature_subsets[diag].keys():
+        for subset in feature_subsets[output].keys():
 
-            coef_dict = make_coef_dict(feature_subsets[diag][subset], estimators_on_subsets[diag][subset])
-            name_and_value_dict = make_name_and_value_dict(feature_subsets[diag][subset])
+            coef_dict = make_coef_dict(feature_subsets[output][subset], estimators_on_subsets[output][subset])
+            name_and_value_dict = make_name_and_value_dict(feature_subsets[output][subset])
 
-            feature_subsets_with_names_and_coefs[diag][subset] = [f'({coef_dict[x]:.2f}*) {x}: {name_and_value_dict[x][0]} - {name_and_value_dict[x][1]}' 
-                                                                  for x in feature_subsets[diag][subset]]
+            feature_subsets_with_names_and_coefs[output][subset] = [f'({coef_dict[x]:.2f}*) {x}: {name_and_value_dict[x][0]} - {name_and_value_dict[x][1]}' 
+                                                                  for x in feature_subsets[output][subset]]
     return feature_subsets_with_names_and_coefs
 
 def add_performances_to_subsets(feature_subsets_with_names_and_coef, performances):
     result = {}
-    for diag in feature_subsets_with_names_and_coef:
-        result[diag] = {}
-        for subset in feature_subsets_with_names_and_coef[diag]:
-            auroc = performances[diag][subset][list(performances[diag][subset].keys())[0]][0] # AUROC is first item in list of metrics, and 
-                                                                                              # is the same for all thresholds (so we take 0th threshold)
-            result[diag][subset] = [f'AUROC: {auroc:.2}', feature_subsets_with_names_and_coef[diag][subset]]
+    for output in feature_subsets_with_names_and_coef:
+        result[output] = {}
+        for subset in feature_subsets_with_names_and_coef[output]:
+            r2 = performances[output][subset][list(performances[output][subset].keys())[0]] 
+            result[output][subset] = [f'r2: {r2:.2}', feature_subsets_with_names_and_coef[output][subset]]
     return result
 
 def write_feature_subsets_to_file(feature_subsets, estimators_on_subsets, output_reports_dir, performances = None):

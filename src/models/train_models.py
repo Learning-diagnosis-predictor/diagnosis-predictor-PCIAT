@@ -198,20 +198,16 @@ def find_best_estimators_and_scores(datasets, output_cols, performance_margin):
             
     return best_estimators, scores_of_best_estimators, sds_of_scores_of_best_estimators
 
-def get_output_col_values_range(full_dataset, output):
-    output_col_values = full_dataset[output].values
-    return(min(output_col_values), max(output_col_values))
+def build_df_of_best_estimators_and_their_score_sds(best_estimators, scores_of_best_estimators, sds_of_scores_of_best_estimators):
 
-def build_df_of_best_estimators_and_their_score_sds(best_estimators, scores_of_best_estimators, sds_of_scores_of_best_estimators, full_dataset):
     best_estimators_and_score_sds = []
     for output in best_estimators.keys():
         best_estimator = best_estimators[output]
         score_of_best_estimator = scores_of_best_estimators[output]
         sd_of_score_of_best_estimator = sds_of_scores_of_best_estimators[output]
         model_type = util.get_base_model_name_from_pipeline(best_estimator)
-        output_col_values_range = get_output_col_values_range(full_dataset, output)
-        best_estimators_and_score_sds.append([output, model_type, best_estimator, score_of_best_estimator, sd_of_score_of_best_estimator, output_col_values_range[0], output_col_values_range[1]])
-    best_estimators_and_score_sds = pd.DataFrame(best_estimators_and_score_sds, columns = ["Output", "Model type", "Best estimator", "Best score", "SD of best score", "Min value", "Max value"])
+        best_estimators_and_score_sds.append([output, model_type, best_estimator, score_of_best_estimator, sd_of_score_of_best_estimator])
+    best_estimators_and_score_sds = pd.DataFrame(best_estimators_and_score_sds, columns = ["Output", "Model type", "Best estimator", "Best score", "SD of best score"])
     best_estimators_and_score_sds["Score - SD"] = best_estimators_and_score_sds['Best score'] - best_estimators_and_score_sds['SD of best score'] 
     return best_estimators_and_score_sds
 
@@ -236,11 +232,11 @@ def main(performance_margin = 0.02, models_from_file = 1):
     load_dirs = set_up_load_directories()
 
     datasets = load(load_dirs["load_data_dir"]+'datasets.joblib')
-    diag_cols = list(datasets.keys())
-    print("Train set shape: ", datasets[diag_cols[0]]["X_train_train"].shape)
+    output_cols = list(datasets.keys())
+    print("Train set shape: ", datasets[output_cols[0]]["X_train_train"].shape)
 
     if DEBUG_MODE:
-        #diag_cols = diag_cols[0:2]
+        #output_cols = output_cols[0:2]
         pass
 
     if models_from_file == 1:
@@ -251,10 +247,10 @@ def main(performance_margin = 0.02, models_from_file = 1):
 
         dump_estimators_and_performances(dirs, best_estimators, scores_of_best_estimators, sds_of_scores_of_best_estimators)
     else: 
-        # Find best models for each diagnosis
-        best_estimators, scores_of_best_estimators, sds_of_scores_of_best_estimators = find_best_estimators_and_scores(datasets, diag_cols, performance_margin)
+        # Find best models for each output
+        best_estimators, scores_of_best_estimators, sds_of_scores_of_best_estimators = find_best_estimators_and_scores(datasets, output_cols, performance_margin)
         
-        # Save best estimators and thresholds 
+        # Save best estimators 
         dump_estimators_and_performances(dirs, best_estimators, scores_of_best_estimators, sds_of_scores_of_best_estimators)
        
     # Build and save dataframe of best estimators and their scores
@@ -263,7 +259,7 @@ def main(performance_margin = 0.02, models_from_file = 1):
     print(df_of_best_estimators_and_their_score_sds)
 
     # Save feature coefficients for logistic regression models
-    save_coefficients_of_lr_models(best_estimators, datasets, diag_cols, dirs["reports_dir"])
+    save_coefficients_of_lr_models(best_estimators, datasets, output_cols, dirs["reports_dir"])
 
 if __name__ == "__main__":
     main(sys.argv[1], sys.argv[2])
