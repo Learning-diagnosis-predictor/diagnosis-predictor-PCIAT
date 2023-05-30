@@ -40,37 +40,53 @@ def set_up_directories(first_assessment_to_drop, use_other_diags_as_input, only_
 
     return {"data_statistics_dir": data_statistics_dir, "data_output_dir": data_output_dir}
 
-def get_cols_from_output_assessments(all_cols, output_cols):
-    cols_from_output_assessments = []
-    for col in output_cols:
-        assessment_name = col.split(",")[0]
-        cols_from_output_assessments += [x for x in all_cols if assessment_name in x]
+def get_cols_from_output_assessment(all_cols, output_col):
+    assessment_name = output_col.split(",")[0]
+    cols_from_output_assessment = [x for x in all_cols if assessment_name in x]
 
-    return cols_from_output_assessments
+    return cols_from_output_assessment
 
 def customize_input_cols_per_output(input_cols, output):
     
     if output == "WISC,WISC_PSI": # PSI used for FIQ calculation
         input_cols = [x for x in input_cols if x != "Diag.Borderline Intellectual Functioning" and x!= "Diag.Intellectual Disability-Mild"]
+
+    if output.startswith("CIS"):
+        input_cols = [x for x in input_cols if not x.startswith("WHODAS")]
+
+    if output.startswith("WHODAS"):
+        input_cols = [x for x in input_cols if not x.startswith("CIS")]
+
+    if output.startswith("PCIAT"):
+        input_cols = [x for x in input_cols if not x.startswith("IAT")]
+
+    if output.startswith("IAT"):
+        input_cols = [x for x in input_cols if not x.startswith("PCIAT")]
                       
     return input_cols
 
-def get_input_cols_per_output(full_dataset, output, output_cols, use_other_outputs_as_input):
+def get_input_cols_per_output(full_dataset, output, use_other_outputs_as_input, output_cols):
 
-    cols_from_output_assessments = get_cols_from_output_assessments(full_dataset.columns, output_cols)
+    cols_from_output_assessment = get_cols_from_output_assessment(full_dataset.columns, output)
     
     if use_other_outputs_as_input == 1:
         input_cols = [x for x in full_dataset.columns if 
-                            not x in cols_from_output_assessments
-                            and not x == output]
+                            not x in cols_from_output_assessment
+                            and not x in output_cols
+                            and not x in [x+"_binned" for x in output_cols]
+                            and not x.startswith("WISC")
+                            ]
     else:
         input_cols = [x for x in full_dataset.columns if 
-                            not x in cols_from_output_assessments
-                            and not x == output
-                            and not x.startswith("Diag.")]
+                            not x in cols_from_output_assessment
+                            and not x in output_cols
+                            and not x in [x+"_binned" for x in output_cols]
+                            and not x.startswith("WISC")
+                            and not x.startswith("Diag.")
+                            ]
     
     input_cols = customize_input_cols_per_output(input_cols, output)
-    print("Input assessemnts used: ", list(set([x.split(",")[0] for x in input_cols])))
+    print(output, "input assessemnts used: ", list(set([x.split(",")[0] for x in input_cols])))
     
     return input_cols
 
@@ -84,7 +100,7 @@ def split_datasets_per_output(full_dataset, output_cols, split_percentage, use_o
         output_col = output
 
         # Drop columns from input that we don't want there
-        input_cols = get_input_cols_per_output(full_dataset, output, output_cols, use_other_diags_as_input)
+        input_cols = get_input_cols_per_output(full_dataset, output, use_other_diags_as_input, output_cols)
 
         # Split train, validation, and test sets, stratify by the binned target variable
         # Create a new categorical variable by discretizing the continuous target variable (except recent grades, which is already only 5 values)
